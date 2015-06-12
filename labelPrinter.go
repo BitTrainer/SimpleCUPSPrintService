@@ -19,6 +19,8 @@ const (
 	lastNameMarker   = "<LASTNAME>"
 	notesMarker      = "<NOTES>"
 	dateMarker       = "<DATE>"
+	photoMarker      = "<photography>"
+	allergyMarker    = "<allergies>"
 	maxNameLength    = 16
 )
 
@@ -68,6 +70,18 @@ func writeLabel(lableInfo LabelInfo,
 			line = strings.Replace(line, lastNameMarker, formatLabelPart(maxNameLength, lableInfo.LastName), -1)
 		} else if strings.Contains(line, notesMarker) {
 			line = strings.Replace(line, notesMarker, lableInfo.AdditionalInfo, -1)
+		} else if strings.Contains(line, photoMarker) {
+			if lableInfo.CanPhotograph {
+				line = strings.Replace(line, photoMarker, "", -1)
+			} else {
+				line = strings.Replace(line, photoMarker, "Don't photograph", -1)
+			}
+		} else if strings.Contains(line, allergyMarker) {
+			if lableInfo.HasAllergies {
+				line = strings.Replace(line, allergyMarker, "Allergies", -1)
+			} else {
+				line = strings.Replace(line, allergyMarker, "", -1)
+			}
 		}
 		_, err = io.WriteString(outputStream, line+"\n")
 		if err != nil {
