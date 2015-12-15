@@ -97,14 +97,16 @@ func writeLabel(lableInfo LabelInfo,
 }
 
 //LabelPrinter prints labels
-func LabelPrinter(printJobs chan LabelInfo, printerName string, templatePath string,
-	outputPath string, errorLog *log.Logger, infoLog *log.Logger) {
-
+func LabelPrinter(printJobs chan LabelInfo,
+	isToBeSentToPrinter bool,
+	numberOfCopies int,
+	printerName string,
+	templatePath string,
+	outputPath string,
+	errorLog *log.Logger,
+	infoLog *log.Logger) {
 	for printJob := range printJobs {
-		numberOfCopies := 1
-		if printJob.LabelType == "Attendance" {
-			numberOfCopies = 2
-		}
+
 		for i := 1; i <= numberOfCopies; i++ {
 			infoLog.Printf("Printing label: %s ... \n", printJob)
 			timeStamp := time.Now()
@@ -118,15 +120,16 @@ func LabelPrinter(printJobs chan LabelInfo, printerName string, templatePath str
 				errorLog.Printf("Error printing label  %v \n", err)
 				break
 			} else {
-				sendLabelToPrinter(labelFileName, printerName)
-				if err != nil {
-					errorLog.Printf("Error printing label  %v \n", err)
-				} else {
-					infoLog.Println("Printed label successfully. Please collect at Label Station.")
+
+				if isToBeSentToPrinter {
+					err = sendLabelToPrinter(labelFileName, printerName)
+					if err != nil {
+						errorLog.Printf("Error printing label  %v \n", err)
+					} else {
+						infoLog.Println("Printed label successfully. Please collect at Label Station.")
+					}
 				}
-
 			}
-
 		}
 
 		close(printJobs)
