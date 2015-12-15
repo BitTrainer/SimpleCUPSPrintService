@@ -24,6 +24,32 @@ const (
 	maxNameLength    = 16
 )
 
+//LabelPrinter ...
+type LabelPrinter struct {
+	isToBeSentToPrinter bool
+	printerName,
+	templatePath,
+	outputPath string
+	errorLog,
+	infoLog *log.Logger
+}
+
+//NewLabelPrinter  ...
+func NewLabelPrinter(isToBeSentToPrinter bool,
+	printerName,
+	templatePath,
+	outputPath string,
+	errorLog,
+	infoLog *log.Logger) *LabelPrinter {
+	var result = LabelPrinter{isToBeSentToPrinter,
+		printerName,
+		templatePath,
+		outputPath,
+		errorLog,
+		infoLog}
+	return &result
+}
+
 func formatLabelPart(maxLength int, labelPart string) string {
 	partLength := len(labelPart)
 	if partLength >= maxLength {
@@ -96,43 +122,35 @@ func writeLabel(lableInfo LabelInfo,
 	return nil
 }
 
-//LabelPrinter prints labels
-func LabelPrinter(printJobs chan LabelInfo,
-	isToBeSentToPrinter bool,
-	numberOfCopies int,
-	printerName string,
-	templatePath string,
-	outputPath string,
-	errorLog *log.Logger,
-	infoLog *log.Logger) {
-	for printJob := range printJobs {
+//Print prints labels
+func (labelPrinter *LabelPrinter) Print(printJob LabelInfo,
+	numberOfCopies int) (err error) {
 
-		for i := 1; i <= numberOfCopies; i++ {
-			infoLog.Printf("Printing label: %s ... \n", printJob)
-			timeStamp := time.Now()
-			mockGUID := strconv.Itoa(timeStamp.Nanosecond())
-			labelFileName := outputPath + printJob.Id + "_" + timeStamp.Format("2006_01_02_15_04_05") + "_" + mockGUID + ".ps"
-			if i > 1 {
-				printJob.Title = "Parent / Guardian Copy"
-			}
-			err := writeLabel(printJob, templatePath, labelFileName)
-			if err != nil {
-				errorLog.Printf("Error printing label  %v \n", err)
-				break
-			} else {
-
-				if isToBeSentToPrinter {
-					err = sendLabelToPrinter(labelFileName, printerName)
-					if err != nil {
-						errorLog.Printf("Error printing label  %v \n", err)
-					} else {
-						infoLog.Println("Printed label successfully. Please collect at Label Station.")
-					}
-				}
-			}
+	for i := 1; i <= numberOfCopies; i++ {
+		labelPrinter.infoLog.Printf("Printing label: %s ... \n", printJob)
+		timeStamp := time.Now()
+		mockGUID := strconv.Itoa(timeStamp.Nanosecond())
+		labelFileName := labelPrinter.outputPath + printJob.Id + "_" + timeStamp.Format("2006_01_02_15_04_05") + "_" + mockGUID + ".ps"
+		if i > 1 {
+			printJob.Title = "Parent / Guardian Copy"
 		}
 
-		close(printJobs)
-	}
+		err = writeLabel(printJob, labelPrinter.templatePath, labelFileName)
+		if err != nil {
+			labelPrinter.errorLog.Printf("Error printing label  %v \n", err)
+			return err
+		}
+		if !labelPrinter.isToBeSentToPrinter {
+			return nil
+		}
 
+		err = sendLabelToPrinter(labelFileName, labelPrinter.printerName)
+		if err != nil {
+			labelPrinter.errorLog.Printf("Error printing label  %v \n", err)
+			return err
+		}
+
+		labelPrinter.infoLog.Println("Printed label successfully. Please collect at Label Station.")
+	}
+	return nil
 }
