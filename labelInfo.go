@@ -1,8 +1,6 @@
 package SimpleCUPSPrintService
 
-import (
-	"fmt"
-)
+import "fmt"
 
 //LabelInfo is used to transport label printing instructions
 type LabelInfo struct {
@@ -12,8 +10,13 @@ type LabelInfo struct {
 	FirstName      string `json:"firstName"`
 	LastName       string `json:"lastName"`
 	AdditionalInfo string `json:"additionalInfo"`
-	CanPhotograph  bool   `json:"canPhotograph"`
-	HasAllergies   bool   `json:"hasAllergies"`
+	Code           string
+	CanPhotograph  bool `json:"canPhotograph"`
+	Photography    string
+	HasAllergies   bool `json:"hasAllergies"`
+	Allergies      string
+	Date           string `json:"Date"`
+	Notes          string
 }
 
 //String creates a string representing an instance of LabelInfo

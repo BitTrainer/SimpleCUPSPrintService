@@ -1,27 +1,18 @@
 package SimpleCUPSPrintService
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 )
 
 const (
-	titleMarker      = "<TITLE>"
-	accessCodeMarker = "<CODE>"
-	firstNameMarker  = "<FIRSTNAME>"
-	lastNameMarker   = "<LASTNAME>"
-	notesMarker      = "<NOTES>"
-	dateMarker       = "<DATE>"
-	photoMarker      = "<photography>"
-	allergyMarker    = "<allergies>"
-	maxNameLength    = 16
+	maxNameLength = 16
 )
 
 //LabelPrinter ...
@@ -32,6 +23,7 @@ type LabelPrinter struct {
 	outputPath string
 	errorLog,
 	infoLog *log.Logger
+	labelTemplate *template.Template
 }
 
 //NewLabelPrinter  ...
@@ -41,12 +33,20 @@ func NewLabelPrinter(isToBeSentToPrinter bool,
 	outputPath string,
 	errorLog,
 	infoLog *log.Logger) *LabelPrinter {
+	templatePathParts := strings.Split(templatePath, string(os.PathSeparator))
+	templateName := templatePathParts[len(templatePathParts)-1]
+	labelTemplate, err := template.New(templateName).ParseFiles(templatePath)
+	if err != nil {
+		return nil
+	}
 	var result = LabelPrinter{isToBeSentToPrinter,
 		printerName,
 		templatePath,
 		outputPath,
 		errorLog,
-		infoLog}
+		infoLog,
+		labelTemplate}
+
 	return &result
 }
 
@@ -64,61 +64,34 @@ func sendLabelToPrinter(filePath string, printerName string) (err error) {
 	return err
 }
 
-func writeLabel(lableInfo LabelInfo,
-	templatePath string, outputPath string) (err error) {
+func prepareLabelInfoForPrinting(lableInfo *LabelInfo) {
+	lableInfo.Code = strings.ToUpper(formatLabelPart(maxNameLength, lableInfo.Id))
+	lableInfo.Date = time.Now().Format("2006-01-02 15:04:05")
+	lableInfo.FirstName = formatLabelPart(maxNameLength, lableInfo.FirstName)
+	lableInfo.LastName = formatLabelPart(maxNameLength, lableInfo.LastName)
+	lableInfo.Notes = lableInfo.AdditionalInfo
+	if lableInfo.CanPhotograph {
+		lableInfo.Photography = ""
+	} else {
+		lableInfo.Photography = "Don't photograph"
+	}
+	if lableInfo.HasAllergies {
+		lableInfo.Allergies = "Allergies"
+	} else {
+		lableInfo.Allergies = ""
+	}
+}
 
-	inputStream, err := os.Open(templatePath)
+func writeLabel(lableInfo *LabelInfo,
+	labelTemplate *template.Template,
+	outputPath string) (err error) {
+	prepareLabelInfoForPrinting(lableInfo)
+	w, err := os.OpenFile(outputPath, os.O_CREATE|os.O_RDWR, os.ModePerm)
 	if err != nil {
-		err = fmt.Errorf("Error opening print template at %s. Got error %v \n", templatePath, err)
-		return
+		return err
 	}
-	outputStream, err := os.Create(outputPath)
-	if err != nil {
-		err = fmt.Errorf("Error creating label file  %v \n", err)
-		return
-	}
-	defer outputStream.Close()
-	defer inputStream.Close()
-
-	scanner := bufio.NewScanner(inputStream)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.Contains(line, titleMarker) {
-			line = strings.Replace(line, titleMarker, strings.Title(lableInfo.Title), -1)
-		} else if strings.Contains(line, accessCodeMarker) {
-			line = strings.Replace(line, accessCodeMarker, strings.ToUpper(formatLabelPart(maxNameLength, lableInfo.Id)), -1)
-		} else if strings.Contains(line, dateMarker) {
-			line = strings.Replace(line, dateMarker, time.Now().Format("2006-01-02 15:04:05"), -1)
-		} else if strings.Contains(line, firstNameMarker) {
-			line = strings.Replace(line, firstNameMarker, formatLabelPart(maxNameLength, lableInfo.FirstName), -1)
-		} else if strings.Contains(line, lastNameMarker) {
-			line = strings.Replace(line, lastNameMarker, formatLabelPart(maxNameLength, lableInfo.LastName), -1)
-		} else if strings.Contains(line, notesMarker) {
-			line = strings.Replace(line, notesMarker, lableInfo.AdditionalInfo, -1)
-		} else if strings.Contains(line, photoMarker) {
-			if lableInfo.CanPhotograph {
-				line = strings.Replace(line, photoMarker, "", -1)
-			} else {
-				line = strings.Replace(line, photoMarker, "Don't photograph", -1)
-			}
-		} else if strings.Contains(line, allergyMarker) {
-			if lableInfo.HasAllergies {
-				line = strings.Replace(line, allergyMarker, "Allergies", -1)
-			} else {
-				line = strings.Replace(line, allergyMarker, "", -1)
-			}
-		}
-		_, err = io.WriteString(outputStream, line+"\n")
-		if err != nil {
-			return
-		}
-	}
-
-	if scanner.Err() != nil {
-		err = fmt.Errorf("Error reading label template")
-		return
-	}
+	defer w.Close()
+	labelTemplate.Execute(w, lableInfo)
 	return nil
 }
 
@@ -135,7 +108,7 @@ func (labelPrinter *LabelPrinter) Print(printJob LabelInfo,
 			printJob.Title = "Parent / Guardian Copy"
 		}
 
-		err = writeLabel(printJob, labelPrinter.templatePath, labelFileName)
+		err = writeLabel(&printJob, labelPrinter.labelTemplate, labelFileName)
 		if err != nil {
 			labelPrinter.errorLog.Printf("Error printing label  %v \n", err)
 			return err
