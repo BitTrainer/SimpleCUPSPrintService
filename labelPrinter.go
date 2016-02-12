@@ -100,11 +100,13 @@ func (labelPrinter *LabelPrinter) Print(printJob LabelInfo,
 	numberOfCopies int) (err error) {
 
 	for i := 1; i <= numberOfCopies; i++ {
-		labelPrinter.infoLog.Printf("Printing label: %s ... \n", printJob)
+		labelPrinter.infoLog.Printf("Label Printer: Printing label: %s ... \n", printJob)
 		timeStamp := time.Now()
 		mockGUID := strconv.Itoa(timeStamp.Nanosecond())
+
 		labelFileName := labelPrinter.outputPath + printJob.Id + "_" + timeStamp.Format("2006_01_02_15_04_05") + "_" + mockGUID + ".ps"
 		if i > 1 {
+			labelFileName = labelPrinter.outputPath + printJob.Id + fmt.Sprintf("_ %d", i) + "_" + timeStamp.Format("2006_01_02_15_04_05") + "_" + mockGUID + ".ps"
 			printJob.Title = "Parent / Guardian Copy"
 		}
 
@@ -114,7 +116,8 @@ func (labelPrinter *LabelPrinter) Print(printJob LabelInfo,
 			return err
 		}
 		if !labelPrinter.isToBeSentToPrinter {
-			return nil
+			labelPrinter.infoLog.Println("Printed label successfully. Please collect at Label Station.")
+			continue
 		}
 
 		err = sendLabelToPrinter(labelFileName, labelPrinter.printerName)
